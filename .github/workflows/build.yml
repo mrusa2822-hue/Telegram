@@ -3,7 +3,7 @@ name: Build Custom Telegram
 on:
   push:
     branches: [ master, main ]
-  workflow_dispatch: # Emon ekta button add korbe jeta diye manually build start kora jay
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,20 +14,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: recursive # Telegram er onnek submodule ache, gulo pull kora joruri
+          submodules: recursive
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17' # Telegram Android 17 e kaj kore
+          java-version: '17'
+
+      - name: Create dummy google-services.json
+        run: |
+          echo '{ "project_info": { "project_number": "123456789", "project_id": "dummy-project" }, "client": [ { "client_info": { "mobilesdk_app_id": "1:123456789:android:abcdef", "client_id": "android:com.drklo.telegram", "client_type": 1, "android_client_info": { "package_name": "org.telegram.messenger" } }, "api_key": [ { "current_key": "dummy-key" } ] } ], "configuration_version": "1" }' > TMessagesProj/google-services.json
 
       - name: Inject API ID and HASH
         env:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
         run: |
-          # BuildVars.java file e dummy API key change kore tomar secret key bosano hocche
           FILE="TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java"
           if [ -f "$FILE" ]; then
             sed -i "s/APP_ID = .*/APP_ID = $TG_API_ID;/g" $FILE
@@ -38,10 +41,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build APK (Standalone Debug)
-        run: bash ./gradlew assembleStandaloneDebug --no-daemon
+        run: |
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx6g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+          bash ./gradlew assembleStandaloneDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ZdCustomGram-APK
           path: TMessagesProj/build/outputs/apk/*/debug/*.apk
