@@ -27,7 +27,34 @@ jobs:
 
       - name: Create dummy google-services.json
         run: |
-          echo '{ "project_info": { "project_number": "123456789", "project_id": "dummy-project" }, "client": [ { "client_info": { "mobilesdk_app_id": "1:123456789:android:abcdef", "client_id": "android:com.drklo.telegram", "client_type": 1, "android_client_info": { "package_name": "org.telegram.messenger" } }, "api_key": [ { "current_key": "dummy-key" } ] } ], "configuration_version": "1" }' > TMessagesProj/google-services.json
+          cat > TMessagesProj/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "123456789",
+              "project_id": "dummy-project"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789:android:abcdef",
+                  "client_id": "android:123456789abcdef"
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "dummy-key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
 
       - name: Inject API ID and HASH
         env:
@@ -36,8 +63,31 @@ jobs:
         run: |
           FILE="TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java"
           if [ -f "$FILE" ]; then
-            sed -i "s/APP_ID = .*/APP_ID = $TG_API_ID;/g" $FILE
-            sed -i "s/APP_HASH = .*/APP_HASH = \"$TG_API_HASH\";/g" $FILE
+            python3 - "$FILE" "$TG_API_ID" "$TG_API_HASH" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+file_path = Path(sys.argv[1])
+api_id = sys.argv[2]
+api_hash = sys.argv[3]
+text = file_path.read_text()
+
+text = re.sub(
+    r'(?m)^(\s*public static int APP_ID = ).*;(\s*)$',
+    rf'\1{api_id};\2',
+    text,
+    count=1,
+)
+text = re.sub(
+    r'(?m)^(\s*public static String APP_HASH = ).*;(\s*)$',
+    rf'\1"{api_hash}";\2',
+    text,
+    count=1,
+)
+
+file_path.write_text(text)
+PY
           fi
 
       - name: Setup Gradle
